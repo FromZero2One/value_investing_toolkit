@@ -1,0 +1,165 @@
+# 通用估值假设配置（反向 DCF / 情景树 / 蒙特卡洛参数）
+# 所有比率为小数（0.09 = 9%）
+# 行业特定假设可在此覆盖，或在代码中按 sector 读取
+
+# ===== 通用基础假设 =====
+base:
+  # 无风险利率（10年国债收益率，定期更新）
+  risk_free_rate: 0.025
+
+  # 市场风险溢价
+  equity_risk_premium: 0.055
+
+  # 终值倍数（PE/PB/FCF Yield），用于 Gordon Growth 或退出倍数法
+  terminal:
+    method: "gordon"  # gordon / exit_multiple
+    gordon_growth: 0.03   # 永续增长率（不超过名义GDP增速）
+    exit_multiple_pe: 12  # 退出市盈率
+    exit_multiple_pfcf: 15 # 退出市自由现金流率
+
+  # 竞争优势期 / ROIC 衰减期（年）
+  fade_years: 10
+
+  # 蒙特卡洛模拟次数
+  monte_carlo_sims: 10000
+
+  # 半凯利系数
+  half_kelly: 0.5
+
+  # 单票最大仓位上限
+  max_position_pct: 0.15
+
+# ===== 行业特定假设覆盖（可选）=====
+# 不配置的行业沿用 base
+sector_overrides:
+  # 银行：用股息贴现模型 / PB-ROE，不适用标准 DCF
+  "银行":
+    valuation_method: "dividend_discount"  # 标识用不同模型
+    target_pb_roe: 1.2  # 目标 PB = ROE * 系数
+    required_roe: 0.14
+    cost_of_equity: 0.10
+
+  # 保险：嵌入价值 EV / 分红贴现
+  "保险":
+    valuation_method: "ev_discount"
+    ev_multiple: 1.0
+    cost_of_equity: 0.11
+
+  # 白酒：高确定性、长衰减期、高终值
+  "白酒":
+    fade_years: 15
+    terminal:
+      gordon_growth: 0.04
+      exit_multiple_pe: 18
+    wacc_adjust: -0.01  # 比基础 WACC 低 1%
+
+  # 锂电池/新能源车：高增长、高不确定性、短衰减期
+  "锂电池":
+    fade_years: 8
+    terminal:
+      gordon_growth: 0.02
+      exit_multiple_pe: 12
+    wacc_adjust: 0.02
+
+  "新能源车":
+    fade_years: 8
+    terminal:
+      gordon_growth: 0.02
+      exit_multiple_pe: 15
+    wacc_adjust: 0.015
+
+  # 互联网/平台：分部估值 SOTP
+  "互联网-社交/游戏":
+    valuation_method: "sotp"
+    segments:
+      - name: "核心广告/游戏"
+        method: "dcf"
+        weight: 0.7
+      - name: "金融科技/云"
+        method: "dcf"
+        weight: 0.2
+      - name: "投资公允价值"
+        method: "market_value"
+        weight: 0.1
+    fade_years: 10
+
+  "消费电子/汽车":
+    valuation_method: "sotp"
+    segments:
+      - name: "手机/IoT"
+        method: "dcf"
+        weight: 0.6
+      - name: "汽车"
+        method: "dcf"
+        weight: 0.4
+    fade_years: 8
+
+  # 医药-创新药：管线估值 rNPV
+  "医药-创新药":
+    valuation_method: "rnpv"
+    fade_years: 12
+    success_rate_phase1: 0.1
+    success_rate_phase2: 0.2
+    success_rate_phase3: 0.5
+    approval_rate: 0.85
+
+  # 乳制品/调味品/家电：成熟消费，稳健分红
+  "乳制品":
+    fade_years: 12
+    terminal:
+      gordon_growth: 0.03
+      exit_multiple_pe: 15
+    wacc_adjust: -0.005
+
+  "调味品":
+    fade_years: 12
+    terminal:
+      gordon_growth: 0.03
+      exit_multiple_pe: 16
+    wacc_adjust: -0.005
+
+  "白色家电":
+    fade_years: 8
+    terminal:
+      gordon_growth: 0.02
+      exit_multiple_pe: 10
+    wacc_adjust: 0.01
+
+  "免税零售":
+    fade_years: 8
+    terminal:
+      gordon_growth: 0.02
+      exit_multiple_pe: 14
+    wacc_adjust: 0.01
+
+# ===== 估值模型通用参数 =====
+valuation:
+  # 维持性 Capex 估算系数（折旧 * 系数）
+  # 白酒/医药/互联网 ~ 0.6-0.8；制造/零售/物流 ~ 1.0-1.2
+  maintenance_capex_multiplier:
+    default: 1.0
+    "白酒": 0.7
+    "医药-创新药": 0.8
+    "互联网-社交/游戏": 0.6
+    "消费电子/汽车": 0.9
+    "锂电池": 1.1
+    "新能源车": 1.1
+    "银行": 0.5
+    "保险": 0.5
+    "乳制品": 0.9
+    "调味品": 0.8
+    "白色家电": 1.0
+    "免税零售": 0.9
+
+  # 营运资本变动预测：应收/存货/应付占收入比趋势
+  working_capital:
+    method: "revenue_ratio_trend"  # revenue_ratio_trend / fixed_ratio
+    lookback_years: 5
+
+  # 股权稀释预测（年化）
+  dilution_rate:
+    default: 0.005  # 0.5%/年
+    "医药-创新药": 0.02
+    "锂电池": 0.015
+    "新能源车": 0.01
+    "互联网-社交/游戏": 0.008

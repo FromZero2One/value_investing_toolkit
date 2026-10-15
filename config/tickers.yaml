@@ -1,0 +1,121 @@
+# A/H 股自选池配置
+# 格式：ticker: {name, market, sector, priority, notes}
+# market: SH/SZ/HK
+# priority: high/medium/low (高优先级跑文本分析、详细估值)
+# sector: 用于行业对标、估值模型选择
+
+tickers:
+  # 核心重仓候选
+  - ticker: "600519.SH"
+    name: "贵州茅台"
+    market: "SH"
+    sector: "白酒"
+    priority: "high"
+    notes: "龙头、定价权强、现金流极佳"
+
+  - ticker: "000858.SZ"
+    name: "五粮液"
+    market: "SZ"
+    sector: "白酒"
+    priority: "high"
+    notes: "次高端龙头、分红稳健"
+
+  - ticker: "300750.SZ"
+    name: "宁德时代"
+    market: "SZ"
+    sector: "锂电池"
+    priority: "high"
+    notes: "全球龙头、技术护城河、扩产周期中"
+
+  - ticker: "601318.SH"
+    name: "中国平安"
+    market: "SH"
+    sector: "保险"
+    priority: "medium"
+    notes: "综合金融、估值低、转型关键期"
+
+  - ticker: "600036.SH"
+    name: "招商银行"
+    market: "SH"
+    sector: "银行"
+    priority: "medium"
+    notes: "零售龙头、资产质量优、估值合理"
+
+  - ticker: "600276.SH"
+    name: "恒瑞医药"
+    market: "SH"
+    sector: "医药-创新药"
+    priority: "high"
+    notes: "创新药龙头、管线丰富、BD能力强"
+
+  - ticker: "002594.SZ"
+    name: "比亚迪"
+    market: "SZ"
+    sector: "新能源车"
+    priority: "medium"
+    notes: "产业链垂直整合、规模效应显现"
+
+  - ticker: "600887.SH"
+    name: "伊利股份"
+    market: "SH"
+    sector: "乳制品"
+    priority: "medium"
+    notes: "行业龙头、护城河宽、分红慷慨"
+
+  # 港股（通过 AKShare 获取）
+  - ticker: "00700.HK"
+    name: "腾讯控股"
+    market: "HK"
+    sector: "互联网-社交/游戏"
+    priority: "high"
+    notes: "社交护城河最深、分红启动、回购持续"
+
+  - ticker: "01810.HK"
+    name: "小米集团"
+    market: "HK"
+    sector: "消费电子/汽车"
+    priority: "medium"
+    notes: "生态闭环、汽车新增长曲线"
+
+  - ticker: "03690.HK"
+    name: "美团-W"
+    market: "HK"
+    sector: "互联网-本地生活"
+    priority: "medium"
+    notes: "外卖/到店双龙头、盈利拐点已现"
+
+  - ticker: "02318.HK"
+    name: "中国平安-H"
+    market: "HK"
+    sector: "保险"
+    priority: "low"
+    notes: "AH溢价套利观察、基本面同601318"
+
+  - ticker: "00939.HK"
+    name: "建设银行-H"
+    market: "HK"
+    sector: "银行"
+    priority: "low"
+    notes: "高股息、低估值、周期防御"
+
+  # 观察名单
+  - ticker: "603288.SH"
+    name: "海天味业"
+    market: "SH"
+    sector: "调味品"
+    priority: "low"
+    notes: "调味品龙头、成长性放缓观察"
+
+  - ticker: "000333.SZ"
+    name: "美的集团"
+    market: "SZ"
+    sector: "白色家电"
+    priority: "low"
+    notes: "全球白电龙头、海外收入占比高"
+
+  - ticker: "601888.SH"
+    name: "中国中免"
+    market: "SH"
+    sector: "免税零售"
+    priority: "low"
+    notes: "政策依赖度高、业绩波动大"

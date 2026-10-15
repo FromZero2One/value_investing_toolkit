@@ -1,0 +1,25 @@
+# 推送渠道配置（按需启用，敏感信息建议用环境变量）
+
+telegram:
+  enabled: false
+  bot_token: ""      # 从 @BotFather 获取
+  chat_id: ""        # 用户/群组 ID，负数为群组
+
+webhooks:
+  # 企业微信群机器人
+  # wechat_work: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx"
+  # 钉钉群机器人
+  # dingtalk: "https://oapi.dingtalk.com/robot/send?access_token=xxx"
+  # 飞书群机器人
+  # feishu: "https://open.feishu.cn/open-apis/bot/v2/hook/xxx"
+  # Server酱（微信推送）
+  # serverchan: "https://sctapi.ftqq.com/xxx.send"
+
+email:
+  enabled: false
+  smtp_host: "smtp.gmail.com"
+  smtp_port: 587
+  username: ""
+  password: ""       # 应用专用密码
+  from_addr: ""
+  to_addrs: []

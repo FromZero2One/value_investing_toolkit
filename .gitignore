@@ -1,0 +1,9 @@
+# 本地运行产物，不入库
+.venv/
+data/*.duckdb
+data/*.db
+logs/
+output/
+__pycache__/
+*.pyc
+.streamlit/secrets.toml

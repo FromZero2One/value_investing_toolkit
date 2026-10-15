@@ -1,0 +1,163 @@
+# 监控预警规则配置
+# 所有指标需在 analysis/ratios.py 或 quality.py 中已计算
+
+ticker_info:
+  "600519.SH": {name: "贵州茅台", sector: "白酒"}
+  "000858.SZ": {name: "五粮液", sector: "白酒"}
+  "300750.SZ": {name: "宁德时代", sector: "锂电池"}
+  "601318.SH": {name: "中国平安", sector: "保险"}
+  "600036.SH": {name: "招商银行", sector: "银行"}
+  "600276.SH": {name: "恒瑞医药", sector: "医药-创新药"}
+  "002594.SZ": {name: "比亚迪", sector: "新能源车"}
+  "600887.SH": {name: "伊利股份", sector: "乳制品"}
+  "00700.HK": {name: "腾讯控股", sector: "互联网-社交/游戏"}
+  "01810.HK": {name: "小米集团", sector: "消费电子/汽车"}
+  "03690.HK": {name: "美团-W", sector: "互联网-本地生活"}
+  "02318.HK": {name: "中国平安-H", sector: "保险"}
+  "00939.HK": {name: "建设银行-H", sector: "银行"}
+  "603288.SH": {name: "海天味业", sector: "调味品"}
+  "000333.SZ": {name: "美的集团", sector: "白色家电"}
+  "601888.SH": {name: "中国中免", sector: "免税零售"}
+
+rules:
+  # ===== 基本面恶化（核心）=====
+  - id: "FCF_NEG_2Q"
+    metric: "fcf"
+    condition: "lt"
+    threshold: 0
+    window: 2
+    severity: "critical"
+    description: "自由现金流连续 2 期为负"
+
+  - id: "FCF_CONVERSION_LOW"
+    metric: "fcf_conversion"
+    condition: "lt"
+    threshold: 0.5
+    window: 2
+    severity: "warning"
+    description: "FCF 转换率连续 2 期低于 50%"
+
+  - id: "AR_DAYS_SPIKE"
+    metric: "ar_days"
+    condition: "gt"
+    threshold: 120
+    window: 1
+    severity: "warning"
+    description: "应收账款周转天数超过 120 天"
+
+  - id: "AR_DAYS_YOY_SURGE"
+    metric: "ar_days_yoy"
+    condition: "gt"
+    threshold: 0.3
+    window: 1
+    severity: "warning"
+    description: "应收账款天数同比激增超 30%"
+
+  - id: "INVENTORY_DAYS_HIGH"
+    metric: "inventory_days"
+    condition: "gt"
+    threshold: 180
+    window: 1
+    severity: "warning"
+    description: "存货周转天数超过 180 天"
+
+  - id: "ROIC_BELOW_WACC"
+    metric: "roic"
+    condition: "lt"
+    threshold: 0.08
+    window: 2
+    severity: "critical"
+    description: "ROIC 连续 2 期低于 8%（约等于 WACC）"
+
+  - id: "NET_DEBT_EBITDA_HIGH"
+    metric: "net_debt_to_ebitda"
+    condition: "gt"
+    threshold: 3.0
+    window: 1
+    severity: "warning"
+    description: "净负债/EBITDA 超过 3 倍"
+
+  - id: "DEBT_RATIO_HIGH"
+    metric: "debt_to_asset"
+    condition: "gt"
+    threshold: 0.7
+    window: 2
+    severity: "warning"
+    description: "资产负债率连续 2 期超过 70%"
+
+  # ===== 质量评分预警 =====
+  - id: "PIOTROSKI_DETERIORATE"
+    metric: "piotroski_f_score"
+    condition: "lt"
+    threshold: 5
+    window: 1
+    severity: "warning"
+    description: "Piotroski F-Score 跌破 5 分"
+
+  - id: "PIOTROSKI_DROP_2"
+    metric: "piotroski_f_score"
+    condition: "cross_down"
+    threshold: 7
+    window: 1
+    severity: "warning"
+    description: "Piotroski F-Score 从高分跌破 7"
+
+  - id: "BENEISH_FLAG"
+    metric: "beneish_flag"
+    condition: "eq"
+    threshold: true
+    window: 1
+    severity: "critical"
+    description: "Beneish M-Score 触发舞弊嫌疑"
+
+  - id: "MOAT_SCORE_DROP"
+    metric: "moat_score"
+    condition: "cross_down"
+    threshold: 70
+    window: 1
+    severity: "warning"
+    description: "护城河评分跌破 70"
+
+  # ===== 估值极值（需结合行情数据，此处占位）=====
+  # 实际使用时需在 valuation.py 计算后写入 df 或单独规则引擎
+  - id: "PE_HISTORICAL_HIGH"
+    metric: "pe_ttm"
+    condition: "gt"
+    threshold: 50
+    window: 1
+    severity: "info"
+    description: "PE(TTM) 超过 50 倍（需外部行情数据）"
+
+  - id: "PB_HISTORICAL_HIGH"
+    metric: "pb"
+    condition: "gt"
+    threshold: 5
+    window: 1
+    severity: "info"
+    description: "PB 超过 5 倍（需外部行情数据）"
+
+  # ===== 催化剂/事件类（需人工维护或接入新闻 API）=====
+  # 此处仅作示例，实际建议在 dashboard 中人工标记
+  - id: "MANAGEMENT_CHANGE"
+    metric: "management_change_flag"
+    condition: "eq"
+    threshold: true
+    window: 1
+    severity: "info"
+    description: "管理层变更（需人工录入）"
+
+  - id: "LARGE_SHAREHOLDER_BUY"
+    metric: "large_shareholder_buy_flag"
+    condition: "eq"
+    threshold: true
+    window: 1
+    severity: "info"
+    description: "大股东增持（需人工录入）"
+
+  - id: "BUYBACK_ANNOUNCE"
+    metric: "buyback_announce_flag"
+    condition: "eq"
+    threshold: true
+    window: 1
+    severity: "info"
+    description: "回购公告（需人工录入）"
