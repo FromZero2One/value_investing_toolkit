@@ -50,6 +50,7 @@ def run_analyze():
     from analysis.ratios import compute_all_ratios
     from analysis.quality import piotroski_f_score, beneish_m_score, moat_scorecard, quality_summary
     from analysis.valuation import load_assumptions, run_valuation_for_ticker, valuation_to_dataframe
+    from data.provider import AKShareProvider
 
     conn = duckdb.connect("data/financial.duckdb")
     df = conn.execute("SELECT * FROM financials").df()
@@ -61,13 +62,79 @@ def run_analyze():
 
     # 1. 比率
     df = compute_all_ratios(df)
+    # 1b. 行业分位数（用于对标）
+    from analysis.ratios import add_percentile_ranks
+    key_metrics = ["roe", "roic", "gross_margin", "operating_margin", "net_margin", 
+                   "fcf_conversion", "net_debt_to_ebitda", "debt_to_asset",
+                   "cash_cycle_days", "ar_days", "inventory_days",
+                   "asset_turnover", "revenue_yoy", "net_profit_parent_yoy"]
+    df = add_percentile_ranks(df, key_metrics)
     # 2. 质量评分
     df = piotroski_f_score(df)
     df = beneish_m_score(df)
     df = moat_scorecard(df)
-    # 3. 估值（需实时行情，此处仅演示结构）
-    # assumptions = load_assumptions()
-    # ... 需要当前价格和总股本
+
+    # 3. 获取实时行情用于估值
+    logger.info("获取实时行情...")
+    provider = AKShareProvider()
+    try:
+        # 只处理配置文件中有的有效 tickers
+        import yaml
+        with open("config/tickers.yaml", "r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f)
+        valid_tickers = [item["ticker"] for item in cfg["tickers"]]
+        tickers = [t for t in df["ticker"].unique() if t in valid_tickers]
+        quotes = provider.fetch_realtime_quotes(tickers)
+    finally:
+        provider.close()
+
+    if quotes.empty:
+        logger.warning("未获取到实时行情，跳过估值计算")
+    else:
+        logger.info(f"获取到 {len(quotes)} 只标的实时行情")
+        # 4. 估值
+        assumptions = load_assumptions()
+        valuation_results = []
+        
+        # 加载 tickers 配置获取 sector
+        import yaml
+        with open("config/tickers.yaml", "r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f)
+        ticker_sector = {item["ticker"]: item.get("sector", "default") for item in cfg["tickers"]}
+        
+        for _, row in quotes.iterrows():
+            ticker = row["ticker"]
+            current_price = row["current_price"]
+            total_shares = row.get("total_shares", 0)
+            
+            if pd.isna(current_price) or current_price <= 0:
+                continue
+            if pd.isna(total_shares) or total_shares <= 0:
+                logger.warning(f"{ticker} 总股本为空，跳过估值")
+                continue
+            
+            sector = ticker_sector.get(ticker, "default")
+            # 传入 sector 让估值模块用行业假设
+            try:
+                res = run_valuation_for_ticker(
+                    ticker=ticker,
+                    current_price=current_price,
+                    shares_outstanding=total_shares,
+                    df=df,
+                    assumptions=assumptions,
+                    your_growth_estimate=assumptions.get("sector_overrides", {}).get(sector, {}).get("your_growth_estimate", 0.08)
+                )
+                valuation_results.append(res)
+                logger.info(f"{ticker} 估值完成: 隐含增长P50={res.implied_growth_p50:.1%}, 安全边际={res.margin_of_safety_pct:.1%}, 建议仓位={res.margin_of_safety_pct:.1%}")
+            except Exception as e:
+                logger.error(f"{ticker} 估值失败: {e}")
+        
+        if valuation_results:
+            val_df = valuation_to_dataframe(valuation_results)
+            # 导出估值结果
+            Path("output").mkdir(exist_ok=True)
+            val_df.to_csv("output/latest_valuation.csv", index=False, encoding="utf-8-sig")
+            logger.info(f"估值结果已导出: output/latest_valuation.csv")
 
     # 回写数据库（更新比率列）
     # 为简化，这里只打印摘要

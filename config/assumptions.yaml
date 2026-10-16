@@ -29,6 +29,9 @@ base:
   # 单票最大仓位上限
   max_position_pct: 0.15
 
+  # 你的增长预估（用于反向 DCF 安全边际概率计算）
+  your_growth_estimate: 0.08
+
 # ===== 行业特定假设覆盖（可选）=====
 # 不配置的行业沿用 base
 sector_overrides:
@@ -44,6 +47,7 @@ sector_overrides:
     valuation_method: "ev_discount"
     ev_multiple: 1.0
     cost_of_equity: 0.11
+    your_growth_estimate: 0.06
 
   # 白酒：高确定性、长衰减期、高终值
   "白酒":
@@ -52,6 +56,7 @@ sector_overrides:
       gordon_growth: 0.04
       exit_multiple_pe: 18
     wacc_adjust: -0.01  # 比基础 WACC 低 1%
+    your_growth_estimate: 0.10
 
   # 锂电池/新能源车：高增长、高不确定性、短衰减期
   "锂电池":
@@ -60,6 +65,7 @@ sector_overrides:
       gordon_growth: 0.02
       exit_multiple_pe: 12
     wacc_adjust: 0.02
+    your_growth_estimate: 0.15
 
   "新能源车":
     fade_years: 8
@@ -67,6 +73,7 @@ sector_overrides:
       gordon_growth: 0.02
       exit_multiple_pe: 15
     wacc_adjust: 0.015
+    your_growth_estimate: 0.18
 
   # 互联网/平台：分部估值 SOTP
   "互联网-社交/游戏":
@@ -82,6 +89,7 @@ sector_overrides:
         method: "market_value"
         weight: 0.1
     fade_years: 10
+    your_growth_estimate: 0.12
 
   "消费电子/汽车":
     valuation_method: "sotp"
@@ -93,6 +101,7 @@ sector_overrides:
         method: "dcf"
         weight: 0.4
     fade_years: 8
+    your_growth_estimate: 0.15
 
   # 医药-创新药：管线估值 rNPV
   "医药-创新药":
@@ -102,6 +111,7 @@ sector_overrides:
     success_rate_phase2: 0.2
     success_rate_phase3: 0.5
     approval_rate: 0.85
+    your_growth_estimate: 0.20
 
   # 乳制品/调味品/家电：成熟消费，稳健分红
   "乳制品":
@@ -110,6 +120,7 @@ sector_overrides:
       gordon_growth: 0.03
       exit_multiple_pe: 15
     wacc_adjust: -0.005
+    your_growth_estimate: 0.08
 
   "调味品":
     fade_years: 12
@@ -117,6 +128,7 @@ sector_overrides:
       gordon_growth: 0.03
       exit_multiple_pe: 16
     wacc_adjust: -0.005
+    your_growth_estimate: 0.09
 
   "白色家电":
     fade_years: 8
@@ -124,6 +136,7 @@ sector_overrides:
       gordon_growth: 0.02
       exit_multiple_pe: 10
     wacc_adjust: 0.01
+    your_growth_estimate: 0.07
 
   "免税零售":
     fade_years: 8
@@ -131,6 +144,7 @@ sector_overrides:
       gordon_growth: 0.02
       exit_multiple_pe: 14
     wacc_adjust: 0.01
+    your_growth_estimate: 0.08
 
 # ===== 估值模型通用参数 =====
 valuation:

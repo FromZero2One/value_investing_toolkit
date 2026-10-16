@@ -76,6 +76,16 @@ def get_latest(df: pd.DataFrame) -> pd.DataFrame:
     return df.sort_values("report_date").groupby("ticker").last().reset_index()
 
 
+@st.cache_data(ttl=300)
+def load_valuation() -> pd.DataFrame:
+    """加载估值结果"""
+    import os
+    path = "output/latest_valuation.csv"
+    if os.path.exists(path):
+        return pd.read_csv(path)
+    return pd.DataFrame()
+
+
 def format_pct(x):
     if pd.isna(x): return "—"
     return f"{x:.1%}"
@@ -98,6 +108,7 @@ def main():
         financials = load_financials()
         tickers_df = load_tickers()
         assumptions = load_assumptions()
+        valuation_df = load_valuation()
 
     if financials.empty:
         st.error("❌ 财报数据为空，请先运行 `python -m data.provider` 拉取数据")
@@ -160,7 +171,7 @@ def main():
     # ===== 主表格 =====
     st.subheader("📋 自选池健康度总表")
 
-    # 选择显示列
+    # 选择显示列（含分位数）
     display_cols = [
         "ticker", "name", "sector", "priority",
         "report_date",
@@ -171,7 +182,10 @@ def main():
         "piotroski_f_score", "beneish_m_score", "beneish_flag",
         "moat_score", "moat_pricing_power", "moat_cost_advantage",
     ]
-    avail_cols = [c for c in display_cols if c in filtered.columns]
+    # 添加分位数列（如果存在）
+    pct_cols = [c for c in filtered.columns if c.endswith("_pct")]
+    display_cols_extended = display_cols + sorted(pct_cols)
+    avail_cols = [c for c in display_cols_extended if c in filtered.columns]
     show_df = filtered[avail_cols].copy()
 
     # 条件高亮（基于原始数值，在格式化之前判断）
@@ -202,6 +216,10 @@ def main():
             fmt_map[col] = lambda x: format_num(x, "亿")
     if "net_debt_to_ebitda" in show_df.columns:
         fmt_map["net_debt_to_ebitda"] = lambda x: f"{x:.1f}x" if pd.notna(x) else "—"
+    # 分位数列格式化为百分比
+    for col in show_df.columns:
+        if col.endswith("_pct"):
+            fmt_map[col] = lambda x: f"{x:.0%}" if pd.notna(x) else "—"
     if fmt_map:
         styler = styler.format(fmt_map)
 
@@ -255,8 +273,24 @@ def main():
                 </div>
                 """, unsafe_allow_html=True)
 
+        # 行业分位数卡片
+        pct_cols = [(c, c.replace("_pct", "")) for c in detail.index if c.endswith("_pct") and pd.notna(detail[c])]
+        if pct_cols:
+            st.caption("📊 行业分位数（同行业对标，越高越好）")
+            pct_cols_display = st.columns(min(4, len(pct_cols)))
+            for i, (pct_col, base_col) in enumerate(pct_cols):
+                with pct_cols_display[i % len(pct_cols_display)]:
+                    pct_val = detail[pct_col]
+                    base_val = detail.get(base_col)
+                    st.metric(
+                        base_col.upper(),
+                        f"{pct_val:.0%}",
+                        delta=f"数值: {format_pct(base_val)}" if pd.notna(base_val) else None,
+                        help=f"行业分位数：{pct_val:.0%}。同行业中优于 {pct_val:.0%} 的公司。"
+                    )
+
         # 趋势图
-        tab1, tab2, tab3, tab4 = st.tabs(["📈 盈利/现金流", "📊 营运/偿债", "🛡️ 质量评分", "💰 估值参考"])
+        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 盈利/现金流", "📊 营运/偿债", "🛡️ 质量评分", "📊 行业对标", "💰 估值分析"])
 
         with tab1:
             fig = go.Figure()
@@ -309,9 +343,87 @@ def main():
                             st.caption(f"{comp}: {float(val):.0f}/20")
 
         with tab4:
-            st.info("💡 估值模块需接入实时行情数据（当前价、总股本），可在 `portfolio/decision_log.py` 中结合 `analysis/valuation.py` 计算")
-            st.write("**所需输入**：当前股价、总股本")
-            st.write("**输出**：反向DCF隐含增长、情景树估值、安全边际、建议仓位")
+            st.subheader("📊 行业分位数对标")
+            st.caption("同行业排名（分位数越高表示在该指标上优于越多同行）")
+            pct_cols = [(c, c.replace("_pct", "")) for c in detail.index if c.endswith("_pct") and pd.notna(detail[c])]
+            if pct_cols:
+                # 分组显示：盈利/现金流/偿债/营运
+                groups = {
+                    "盈利能力": ["roe", "roic", "gross_margin", "operating_margin", "net_margin"],
+                    "现金流质量": ["fcf_conversion", "ocf_to_net_profit"],
+                    "偿债能力": ["net_debt_to_ebitda", "debt_to_asset", "equity_multiplier"],
+                    "营运效率": ["cash_cycle_days", "ar_days", "inventory_days", "ap_days", "asset_turnover"],
+                    "成长性": ["revenue_yoy", "net_profit_parent_yoy", "ocf_yoy", "fcf_yoy"],
+                }
+                for group_name, metrics in groups.items():
+                    group_pcts = [(c, b) for c, b in pct_cols if b in metrics]
+                    if not group_pcts:
+                        continue
+                    st.markdown(f"**{group_name}**")
+                    cols = st.columns(min(4, len(group_pcts)))
+                    for i, (pct_col, base_col) in enumerate(group_pcts):
+                        with cols[i % len(cols)]:
+                            pct_val = detail[pct_col]
+                            base_val = detail.get(base_col)
+                            st.metric(
+                                base_col.upper(),
+                                f"{pct_val:.0%}",
+                                delta=f"数值: {format_pct(base_val)}" if pd.notna(base_val) else None,
+                                help=f"行业分位数：{pct_val:.0%}。同行业中优于 {pct_val:.0%} 的公司。"
+                            )
+            else:
+                st.info("暂无分位数数据，请先运行 analyze 计算")
+
+        with tab5:
+            st.subheader("💰 估值分析")
+            val_row = valuation_df[valuation_df["ticker"] == selected_ticker]
+            if not val_row.empty:
+                v = val_row.iloc[0]
+                # 关键估值指标卡片
+                col_a, col_b, col_c, col_d = st.columns(4)
+                with col_a:
+                    st.metric("当前股价", f"{v['price']:.2f}")
+                    st.metric("隐含增长(P50)", format_pct(v.get('implied_growth_p50', 0)))
+                with col_b:
+                    st.metric("安全边际", format_pct(v.get('margin_pct', 0)))
+                    st.metric("建议仓位", format_pct(v.get('kelly_position', 0)))
+                with col_c:
+                    st.metric("熊市估值(亿)", f"{v.get('bear_value', 0)/1e8:.1f}")
+                    st.metric("基准估值(亿)", f"{v.get('base_value', 0)/1e8:.1f}")
+                with col_d:
+                    st.metric("牛市估值(亿)", f"{v.get('bull_value', 0)/1e8:.1f}")
+                    st.metric("期望值(亿)", f"{v.get('expected_value', 0)/1e8:.1f}")
+
+                st.divider()
+                # 情景树详情
+                st.markdown("**情景树估值 (亿元)**")
+                scenario_df = pd.DataFrame({
+                    "情景": ["熊市", "基准", "牛市"],
+                    "估值(亿)": [v.get('bear_value', 0)/1e8, v.get('base_value', 0)/1e8, v.get('bull_value', 0)/1e8],
+                    "权重": ["25%", "50%", "25%"],
+                })
+                st.dataframe(scenario_df, use_container_width=True, hide_index=True)
+
+                st.markdown("**反向 DCF 隐含增长率**")
+                rev_dcf_df = pd.DataFrame({
+                    "分位数": ["P10", "P50", "P90"],
+                    "隐含增长率": [format_pct(v.get('implied_growth_p10', 0)), format_pct(v.get('implied_growth_p50', 0)), format_pct(v.get('implied_growth_p90', 0))],
+                    "安全边际概率": [f"{v.get('mos_prob', 0):.1%}", "", ""],
+                })
+                st.dataframe(rev_dcf_df, use_container_width=True, hide_index=True)
+
+                # 敏感性热力图
+                if v.get('sensitivity'):
+                    st.markdown("**敏感性分析：WACC vs 增长率 → 估值(亿)**")
+                    sens = v['sensitivity']
+                    # 转换为 DataFrame
+                    sens_df = pd.DataFrame(sens)
+                    sens_df.index = [f"{float(idx):.1%}" for idx in sens_df.index]
+                    sens_df.columns = [f"{float(col):.1%}" for col in sens_df.columns]
+                    sens_df = sens_df / 1e8  # 转为亿元
+                    st.dataframe(sens_df.style.format("{:.1f}").background_gradient(cmap="RdYlGn"), use_container_width=True)
+            else:
+                st.info("该标的暂无估值数据，请先运行 analyze 计算估值")
 
     # ===== 预警面板 =====
     st.divider()

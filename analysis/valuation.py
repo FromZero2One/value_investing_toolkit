@@ -251,15 +251,16 @@ def run_valuation_for_ticker(
     shares_outstanding: float,
     df: pd.DataFrame,
     assumptions: Dict,
-    your_growth_estimate: float = 0.08
+    your_growth_estimate: float = 0.08,
+    sector: str = "default"
 ) -> ValuationResult:
     """单只股票完整估值流程"""
-    sector = assumptions.get("sectors", {}).get(ticker, "default")
     sector_assumptions = get_sector_assumptions(sector, assumptions)
     sector_assumptions["your_growth_estimate"] = your_growth_estimate
 
     fcf_ttm, maint_capex = estimate_fcf_ttm(df, ticker, sector_assumptions)
-    market_cap = current_price * shares_outstanding
+    # 财报单位为亿元，市值需统一单位
+    market_cap = current_price * shares_outstanding / 100000000  # 转为亿元
 
     # 反向 DCF
     p10, p50, p90, mos_prob = reverse_dcf_monte_carlo(

@@ -220,6 +220,99 @@ class AKShareProvider:
             logger.warning(f"AKShare 港股获取 {symbol} 失败: {e}")
             return {}
 
+    def fetch_realtime_quotes_a(self, symbols: List[str]) -> pd.DataFrame:
+        """获取 A 股实时行情：逐只调用个股分钟线(最新价) + 股东户数详情(总股本)"""
+        logger.info(f"Fetching A-share realtime quotes for {len(symbols)} symbols...")
+        rows = []
+        for sym in symbols:
+            try:
+                # 1. 获取最新价（分钟线最新收盘价）
+                minute_df = ak.stock_zh_a_minute(symbol=f"sh{sym}" if sym.startswith(("6", "9")) else f"sz{sym}", period="1", adjust="")
+                if minute_df.empty:
+                    logger.warning(f"{sym}: 无分钟线数据")
+                    continue
+                current_price = float(minute_df.iloc[-1]["close"])
+                
+                # 2. 获取总股本（股东户数详情 - 最新一期）
+                holder_df = ak.stock_zh_a_gdhs_detail_em(symbol=sym)
+                if holder_df.empty:
+                    logger.warning(f"{sym}: 无股东户数数据")
+                    total_shares = None
+                else:
+                    # 列索引: [9] = 总股本(股)
+                    total_shares = float(holder_df.iloc[-1].iloc[9])
+                
+                ticker = f"{sym}.SH" if sym.startswith(("6", "9")) else f"{sym}.SZ"
+                rows.append({
+                    "ticker": ticker,
+                    "current_price": current_price,
+                    "total_shares": total_shares,
+                })
+            except Exception as e:
+                logger.warning(f"{sym} 获取失败: {e}")
+        
+        return pd.DataFrame(rows) if rows else pd.DataFrame()
+
+    def fetch_realtime_quotes_hk(self, symbols: List[str]) -> pd.DataFrame:
+        """获取港股实时行情：逐只调用"""
+        logger.info(f"Fetching HK realtime quotes for {len(symbols)} symbols...")
+        rows = []
+        for sym in symbols:
+            sym_clean = sym.replace(".HK", "")
+            try:
+                # 尝试多个港股实时行情接口
+                current_price = None
+                total_shares = None
+                
+                # 方法1: 分钟线获取最新价
+                try:
+                    minute_df = ak.stock_hk_minute(symbol=sym_clean, period="1", adjust="") if hasattr(ak, 'stock_hk_minute') else pd.DataFrame()
+                    if not minute_df.empty:
+                        current_price = float(minute_df.iloc[-1]["close"])
+                except Exception:
+                    pass
+                
+                # 方法2: 股本结构获取总股本
+                try:
+                    holder_df = ak.stock_hk_gdhs_detail_em(symbol=sym_clean) if hasattr(ak, 'stock_hk_gdhs_detail_em') else pd.DataFrame()
+                    if not holder_df.empty:
+                        # 尝试找总股本列
+                        total_shares = float(holder_df.iloc[-1].iloc[-2])  # 倒数第二列通常是总股本
+                except Exception:
+                    pass
+                
+                if current_price is not None:
+                    rows.append({
+                        "ticker": sym,
+                        "current_price": current_price,
+                        "total_shares": total_shares,
+                    })
+            except Exception as e:
+                logger.warning(f"{sym} 港股获取失败: {e}")
+        
+        return pd.DataFrame(rows) if rows else pd.DataFrame()
+
+    def fetch_realtime_quotes(self, tickers: List[str]) -> pd.DataFrame:
+        """统一入口：按市场分批获取实时行情"""
+        a_symbols = []
+        hk_symbols = []
+        for t in tickers:
+            _, mkt = self._normalize_ticker(t)
+            if mkt in ("SH", "SZ"):
+                a_symbols.append(t.replace(".SH", "").replace(".SZ", ""))
+            elif mkt == "HK":
+                hk_symbols.append(t)
+        
+        frames = []
+        if a_symbols:
+            frames.append(self.fetch_realtime_quotes_a(a_symbols))
+        if hk_symbols:
+            frames.append(self.fetch_realtime_quotes_hk(hk_symbols))
+        
+        if frames:
+            return pd.concat(frames, ignore_index=True)
+        return pd.DataFrame()
+
     def parse_statement(self, df: pd.DataFrame, field_map: Dict[str, List[str]]) -> Dict[str, Optional[float]]:
         """将单期报表 DataFrame 解析为标准化字段字典"""
         if df.empty:
